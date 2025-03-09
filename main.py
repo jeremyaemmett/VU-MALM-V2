@@ -6,6 +6,7 @@ import parameters as params
 import initialize as init
 import conversions
 import numpy as np
+import atmosphere
 import diffusion
 import forcing
 import newstep
@@ -20,9 +21,8 @@ import time
 thicks, depths = init.define_layers()
 
 fd = forcing.forcing_data()  # Forcing variables
-plots.forcing_plots(fd)
-stop
-chd, mmd, dtd, ptd, sfd, dict_dict = init.variables()  # Chemistry, diffusion, and plant transport variables
+#plots.forcing_plots(fd)
+chd, mmd, atd, dtd, ptd, sfd, dict_dict = init.variables()  # Chemistry, diffusion, and plant transport variables
 
 species_list = system.list_user_chemicals()
 
@@ -39,7 +39,10 @@ while elapsed < run_time and params.jump2plots == False:
     current_datetime = params.start_datetime + timedelta(days=elapsed)
     print_flag = current_datetime.hour == 0 and current_datetime.minute == 0
     write_flag = elapsed % params.write_dt == 0
-    if print_flag: print(current_datetime)
+    if print_flag:
+    #    print(np.dot(chd['ch4']['conc'], depths))
+        #print(chd['ch4']['conc'])
+        print(current_datetime)
 
     # Slice the forcing data at the current day-of-year (doy)
     forcing_t = forcing.forcing_data_t(fd, doy)
@@ -60,8 +63,13 @@ while elapsed < run_time and params.jump2plots == False:
 
             species = species_list[s]
 
-            # Fill unsaturated layers with equilibrium concentrations
-            if watidx > 1: chd[species]['conc'][0:watidx] = forcing_t['eqc'][species][0:watidx]
+            ## Fill unsaturated layers with equilibrium concentrations
+            #if watidx > 1: chd[species]['conc'][0:watidx] = forcing_t['eqc'][species][0:watidx]
+
+            # Calculate fill-in rates for sub-saturated layers - this is partitioned into diffusion vs plant-driven
+            if watidx > 1: atd = atmosphere.transport(species, chd, atd, forcing_t, dt, watidx)
+
+            #stop
 
             #axes[s].set_title(species)
             #axes[s].set_facecolor('gainsboro')
@@ -76,7 +84,9 @@ while elapsed < run_time and params.jump2plots == False:
                 #axes[s].plot([0.0, 1.0], [watline, watline], linewidth=lwidth, linestyle='-', color='gray', alpha = 0.5)
 
             # Calculate gas diffusion rates through soil (mol/m2/day for each layer)
-            dd = diffusion.diffusion(species, chd, dtd, sfd, forcing_t, dt)
+            if params.diffusion_flag: dtd = diffusion.transport(species, chd, dtd, sfd, forcing_t, dt)
+
+            if params.instant_diffusion and watidx > 1: dtd[species]['prof'][0:watidx] = atd[species][0:watidx]
 
             #dd = diffusion.surface_flux(species, chd, dtd, forcing_t)
 
@@ -87,7 +97,12 @@ while elapsed < run_time and params.jump2plots == False:
             # Calculate the surface fluxes (mol/m2/day for diffusion, for roots)
 
             # Update substrate and microbe concentrations
+            species_total_1 = np.dot(chd[species]['conc'], depths)
             cd = newstep.newstep(species, chd, dtd, dt)
+            species_total_2 = np.dot(chd[species]['conc'], depths)
+            flux = (species_total_2 - species_total_1) / dt
+            #if species == 'ch4' and print_flag:
+            #    print(sfd[species], flux)
 
     if write_flag: output.write_output(count, current_datetime, chd, dtd, sfd)
 

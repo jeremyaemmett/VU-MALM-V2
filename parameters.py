@@ -23,13 +23,13 @@ plant_flag = True  # vertical gas transport by plants
 ###
 
 ### Secondary process switches
-instant_diffusion = True
+instant_diffusion = False
 interface_flux = True
 ###
 
 ### Operational switches
 jump2plots = False
-gaussian_profile = False
+gaussian_profile = True
 ###
 
 ### Grid parameters

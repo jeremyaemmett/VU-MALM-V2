@@ -81,7 +81,7 @@ def CNFV(D_layers, bottom, layer_thicknesses, model_dt, steps, C, int_flux, firs
 
     return C
 
-def diffusion(species, chd, dtd, sfd, forcing_t, dt):
+def transport(species, chd, dtd, sfd, forcing_t, dt):
 
     # CR-solver
     thicks, depths = init.define_layers()
@@ -93,7 +93,7 @@ def diffusion(species, chd, dtd, sfd, forcing_t, dt):
 
     int_flux = 0.0
     first_sat_thick = 0.0
-    if iceline != params.total_depth:
+    if iceline != params.total_depth:  # If the entire soil column is NOT frozen
 
         if len(unsaturated_ids) > 0 and np.nanmax(forcing_t['efd'][species]) != 0.0:
 
@@ -103,11 +103,14 @@ def diffusion(species, chd, dtd, sfd, forcing_t, dt):
             first_sat_depth, second_sat_depth = depths[first_sat_layer], depths[second_sat_layer]
             first_sat_thick = second_sat_depth - first_sat_depth
 
-            # First guess of an interface flux
-            int_flux = interface_flux(species, chd, forcing_t, unsaturated_ids[-1] + 1)
-            # If the flux will result in removal > availability in the first saturated layer, cap it
-            if int_flux < 0.0 and abs((int_flux * dt) / thicks[first_sat_layer]) > U1[first_sat_layer]:
-                int_flux = -(U1[first_sat_layer] * thicks[first_sat_layer])/dt
+            # Calculate a water-air interface flux. Defaults to zero if there's no gradient at the interface.
+            int_flux = 0.0
+            if U1[first_sat_layer] > 1e-10 or U1[first_sat_layer-1] > 1e-10:
+                # First guess of an interface flux
+                int_flux = interface_flux(species, chd, forcing_t, unsaturated_ids[-1] + 1)
+                # If the flux will result in removal > availability in the first saturated layer, cap it
+                if int_flux < 0.0 and abs((int_flux * dt) / thicks[first_sat_layer]) > U1[first_sat_layer]:
+                    int_flux = -(U1[first_sat_layer] * thicks[first_sat_layer])/dt
 
             # Modify the first saturated layer
             if params.interface_flux: U1[first_sat_layer] += (int_flux * dt) / thicks[first_sat_layer]

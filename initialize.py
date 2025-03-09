@@ -35,6 +35,19 @@ def define_layers():
     return layer_thicknesses, depths
 
 
+def define_atmfillin():
+
+    unique_chemicals = system.list_user_chemicals()
+
+    layer_thicknesses, depths = define_layers()
+    E = np.zeros(len(depths))  # Array of zeros, used repeatedly to initialize profiles
+
+    atmfillin_dictionary = {}
+    for i in range(0, len(unique_chemicals)): atmfillin_dictionary[unique_chemicals[i]] = E
+
+    return atmfillin_dictionary
+
+
 def define_diffusion():
 
     unique_chemicals = system.list_user_chemicals()
@@ -112,11 +125,13 @@ def define_srffluxes():
 def variables():
 
     chemistry_dictionary, mmrdecomp_dictionary = define_chemistry()
+    atmfillin_dictionary = define_atmfillin()
     diffusion_dictionary = define_diffusion()
     plantdiff_dictionary = define_plantdiff()
     srffluxes_dictionary = define_srffluxes()
-    dict_dict = {'chd': chemistry_dictionary, 'mmd': mmrdecomp_dictionary, 'dtd': diffusion_dictionary,
-                 'ptd': plantdiff_dictionary, 'sfd': srffluxes_dictionary}
+    dict_dict = {'chd': chemistry_dictionary, 'mmd': mmrdecomp_dictionary,
+                 'atd': atmfillin_dictionary, 'dtd': diffusion_dictionary, 'ptd': plantdiff_dictionary,
+                 'sfd': srffluxes_dictionary}
 
-    return chemistry_dictionary, mmrdecomp_dictionary, diffusion_dictionary, plantdiff_dictionary, \
-           srffluxes_dictionary, dict_dict
+    return chemistry_dictionary, mmrdecomp_dictionary, atmfillin_dictionary, \
+           diffusion_dictionary, plantdiff_dictionary, srffluxes_dictionary, dict_dict
