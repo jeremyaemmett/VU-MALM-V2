@@ -43,7 +43,8 @@ def effective_diffusivity(satpct, layer_temps):
 
         # Confine diffusion calculations to the saturated region - easiest way is to apply zero-diffusivity masks here
         eff_diffs[s][layer_temps <= 0.0] = 0.0
-        eff_diffs[s][satpct < 100.0] = 0.0
+        #eff_diffs[s] = diffs['wat'][s]
+        #eff_diffs[s][satpct < 100.0] = 0.0
 
         #eff_diffs[s][layer_temps <= 10.0] = (layer_temps[layer_temps <= 10.0] / 10.0) * eff_diffs[s][layer_temps <= 10.0]
 

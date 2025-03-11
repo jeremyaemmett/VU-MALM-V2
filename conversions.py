@@ -63,7 +63,7 @@ def interp2grid(depths, values, newgrid):
 
 def diffgrid2modelgrid(diffgrid):
 
-    layer_thicknesses, depths = init.define_layers()
+    thicks, depths = init.define_layers()
 
     diff_dz = params.total_depth / params.diff_n_dz
     diff_depths = np.linspace(diff_dz, params.total_depth, params.diff_n_dz)
@@ -75,15 +75,20 @@ def diffgrid2modelgrid(diffgrid):
     linear_mass = np.trapz(diffgrid, diff_depths)  # Integral over the linear grid
     exp_mass = np.trapz(modelgrid, depths)  # Integral over the exponential grid
 
+    # Mass conservation by scaling the concentrations
+    linear_mass = np.sum(diffgrid) * diff_dz
+    exp_mass = np.dot(modelgrid, thicks)
+
     # Scale the concentrations on the exponential grid to conserve mass
     scaling_factor = linear_mass / exp_mass
+    modelgrid *= scaling_factor
 
     return modelgrid
 
 
 def modelgrid2diffgrid(modelgrid):
 
-    layer_thicknesses, depths = init.define_layers()
+    thicks, depths = init.define_layers()
 
     diff_dz = params.total_depth / params.diff_n_dz
     diff_depths = np.linspace(diff_dz, params.total_depth, params.diff_n_dz)
@@ -94,10 +99,13 @@ def modelgrid2diffgrid(modelgrid):
 
     # Mass conservation by scaling the concentrations
     diffgrid_mass = np.trapz(diffgrid, diff_depths)  # Integral over the linear grid
+    diffgrid_mass = np.sum(diffgrid) * diff_dz
     modlgrid_mass = np.trapz(modelgrid, depths)  # Integral over the exponential grid
+    modlgrid_mass = np.dot(modelgrid, thicks)
 
     # Scale the concentrations on the exponential grid to conserve mass
     scaling_factor = modlgrid_mass / diffgrid_mass
+    diffgrid *= scaling_factor
 
     return diffgrid
 

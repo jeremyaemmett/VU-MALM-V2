@@ -40,9 +40,10 @@ while elapsed < run_time and params.jump2plots == False:
     print_flag = current_datetime.hour == 0 and current_datetime.minute == 0
     write_flag = elapsed % params.write_dt == 0
     if print_flag:
-    #    print(np.dot(chd['ch4']['conc'], depths))
-        #print(chd['ch4']['conc'])
         print(current_datetime)
+        #print(np.dot(chd['ch4']['conc'], depths))
+        #print(chd['ch4']['conc'])
+    #    print(current_datetime)
 
     # Slice the forcing data at the current day-of-year (doy)
     forcing_t = forcing.forcing_data_t(fd, doy)
@@ -51,6 +52,11 @@ while elapsed < run_time and params.jump2plots == False:
     iceidx = 0 if np.max(forcing_t['tem']) < 0.0 else np.where(forcing_t['tem'] <= 0.0)[0][0]
     watidx = 0 if np.max(forcing_t['tem']) < 0.0 else np.where(forcing_t['sat'] == 100.0)[0][0]
     iceline, watline = depths[iceidx], depths[watidx]
+
+    if print_flag:
+        print('ch4 before processes', np.dot(chd['ch4']['conc'], thicks))
+        #print(np.dot(chd['ch4']['conc'][0:watidx], thicks[0:watidx]))
+        #print(np.dot(chd['ch4']['conc'][watidx:], thicks[watidx:]))
 
     if iceline != 0.0: # Call processes only if the ground isn't completely frozen
 
@@ -78,13 +84,16 @@ while elapsed < run_time and params.jump2plots == False:
             #axes[s].set_ylabel('Depth') if s == 0 else axes[s].set_ylabel(' ')
             #axes[s].grid(True)
 
-            #if print_flag:
+            ###if print_flag:
+            ###    if species == 'ch4': print('ch4 before diffusion process', np.dot(chd['ch4']['conc'], thicks))
             #    axes[s].step(cd['chem'][species]['conc'], depths, linewidth=lwidth, color=cmap(norm))
                 #axes[s].plot([0.0, 1.0], [iceline, iceline], linewidth=lwidth, linestyle = '--', color='gray', alpha = 0.5)
                 #axes[s].plot([0.0, 1.0], [watline, watline], linewidth=lwidth, linestyle='-', color='gray', alpha = 0.5)
-
             # Calculate gas diffusion rates through soil (mol/m2/day for each layer)
             if params.diffusion_flag: dtd = diffusion.transport(species, chd, dtd, sfd, forcing_t, dt)
+            ###if species == 'ch4': print('ch4 after diffusion process', np.dot(chd['ch4']['conc'], thicks))
+
+            ###if np.round(doy) == 165: stop
 
             if params.instant_diffusion and watidx > 1: dtd[species]['prof'][0:watidx] = atd[species][0:watidx]
 
@@ -98,7 +107,9 @@ while elapsed < run_time and params.jump2plots == False:
 
             # Update substrate and microbe concentrations
             species_total_1 = np.dot(chd[species]['conc'], depths)
-            cd = newstep.newstep(species, chd, dtd, dt)
+            ###if species == 'ch4': print('ch4 before newstep', np.dot(chd['ch4']['conc'], thicks))
+            chd = newstep.newstep(species, chd, dtd, dt)
+            ###if species == 'ch4': print('ch4 after newstep', np.dot(chd['ch4']['conc'], thicks))
             species_total_2 = np.dot(chd[species]['conc'], depths)
             flux = (species_total_2 - species_total_1) / dt
             #if species == 'ch4' and print_flag:
@@ -110,6 +121,8 @@ while elapsed < run_time and params.jump2plots == False:
     count += 1
     dt = newstep.adaptive_timestep(forcing_t, elapsed)
     elapsed, doy = round(elapsed + dt, 2), (doy + dt) % 365
+
+    #stop
 
 end = time.time()
 print('Runtime: ', end - start)

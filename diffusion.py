@@ -20,64 +20,82 @@ def setup_diffusivity(N, x, D_layers, layer_boundaries):
     return D
 
 
-def CNFV(D_layers, bottom, layer_thicknesses, model_dt, steps, C, int_flux, first_sat_thick):
+def CNFV(D_layers, top, bottom, thicks, model_dt, steps, C, int_flux, first_sat_thick, species):
 
     # Parameters
-    N, L = params.diff_n_dz, sum(layer_thicknesses) # Number of layers (control volumes), Length of domain
+    N, L = params.diff_n_dz, sum(thicks) # Number of layers (control volumes), Length of domain
     dx, dt = L / N, model_dt / steps # Spatial step size, Time step size
-
-    layer_boundaries = np.cumsum(layer_thicknesses)
 
     # Spatial grid
     x = np.linspace(dx / 2, L - dx / 2, N) # Cell-centered grid
 
-    first_sat_idx = 0
-    D = setup_diffusivity(N, x, D_layers, layer_boundaries)  # Assign diffusivity to each spatial point
-    if len(np.where(D != 0.0)[0]) > 0: first_sat_idx = np.where(D != 0.0)[0][0]
-    second_sat_idx = first_sat_idx + int(first_sat_idx + first_sat_thick / dx)
+    # Assign diffusivity to each spatial point
+    layer_boundaries = np.cumsum(thicks)
+    D = setup_diffusivity(N, x, D_layers, layer_boundaries)
 
-    # Diffusivities at the interfaces
-    d_interfaces = np.zeros(N + 1)
-    for i in range(1, N): d_interfaces[i] = D[i]
-    d_interfaces[0], d_interfaces[-1] = D[0], D[-1]
+    # Number of diffusion layers (saturated layers)
+    indices = np.where((x > top) & (x <= bottom))[0]
+    N = len(indices)
 
-    r = (dt / (2 * dx**2)) * d_interfaces  # Crank-Nicolson Coefficients
+    # Solve diffusion if there's more than 2 un-saturated layers
+    if N > 2:
 
-    N = len(np.where(x <= bottom)[0]) + 1  # Number of diffusion layers (saturated layers)
+        # Diffusivities at the interfaces
+        d_interfaces = np.zeros(N + 1)
+        for i in range(1, N): d_interfaces[i] = D[i + indices[0]]
+        d_interfaces[0], d_interfaces[-1] = D[indices[0]], D[indices[-1]]
+        #print(d_interfaces)
+        #print(D)
+        #print(indices[0], D[i + indices[0]])
+        #print(d_interfaces)
 
-    # Construct the A (implicit) matrix
-    lower, main, upper = np.zeros(N), np.zeros(N), np.zeros(N)  # Sub, Main, and Super diagonals
-    for i in range(1, N - 1): lower[i], upper[i], main[i] = -r[i - 1], -r[i], 1 + r[i] + r[i - 1]
-    main[0] = main[-1] = 1  # Neumann boundary conditions (zero-flux at edges)
-    upper[0] = lower[-1] = -1
-    A_banded = np.vstack([np.hstack([0, upper[:-1]]), main, np.hstack([lower[1:], 0])])
+        r = (dt / (2 * dx**2)) * d_interfaces  # Crank-Nicolson Coefficients
 
-    # Construct the B (explicit) matrix
-    B = np.zeros((N, N))
-    for i in range(N):
-        B[i, i] = 1 - r[i + 1] - r[i]
-        if i > 0:
-            B[i, i-1] = r[i]
-        if i < N - 1:
-            B[i, i + 1] = r[i + 1]
-    B[0, 0] = B[-1, -1] = 1  # Neumann condition
-    B[0, 1] = B[-1, -2] = -1
+        # Construct the A (implicit) matrix
+        lower, main, upper = np.zeros(N), np.zeros(N), np.zeros(N)  # Sub, Main, and Super diagonals
+        for i in range(1, N - 1): lower[i], upper[i], main[i] = -r[i - 1], -r[i], 1 + r[i] + r[i - 1]
+        # Neumann boundary condition
+        main[0] = main[-1] = 1
+        upper[0] = lower[-1] = -1
+        A_banded = np.vstack([np.hstack([0, upper[:-1]]), main, np.hstack([lower[1:], 0])])
 
-    diffgrid_mass_1 = np.sum(C) * dx
+        # Construct the B (explicit) matrix
+        B = np.zeros((N, N))
+        for i in range(N):
+            B[i, i] = 1 - r[i + 1] - r[i]
+            if i > 0:
+                B[i, i-1] = r[i]
+            if i < N - 1:
+                B[i, i + 1] = r[i + 1]
+        # Neumann boundary condition
+        B[0, 0] = B[-1, -1] = 1
+        B[0, 1] = B[-1, -2] = -1
 
-    for n in range(steps):  # Time-stepping loop
+        diffgrid_mass_1 = np.sum(C[indices]) * dx
+        C1 = np.copy(C)
+        for n in range(steps):  # Time-stepping loop
 
-        #C[first_sat_idx:second_sat_idx] += ((dt * int_flux) / dx) / (second_sat_idx - first_sat_idx)
+            RHS = B @ C[indices]
 
-        RHS = B @ C[0:N]  # Right-hand side for the linear system
+            C_new = solve_banded((1, 1), A_banded, RHS)  # Solve the linear system A * C_new = RHS
 
-        C_new = solve_banded((1, 1), A_banded, RHS)  # Solve the linear system A * C_new = RHS
+            #CA, CB, CC = C[0:indices[0]], C_new, C[(indices[-1]+1):]
+            #C = np.append(CA, np.append(CB, CC))
+            C[indices] = C_new
 
-        C = np.append(C_new, C[N:])
+            diffgrid_mass_n = np.sum(C) * dx  # Optional: Print mass to verify conservation
 
-        diffgrid_mass_n = np.sum(C) * dx  # Optional: Print mass to verify conservation
+        diffgrid_mass_2 = np.sum(C[indices]) * dx
+        C[indices] *= diffgrid_mass_1/diffgrid_mass_2
+        C2 = np.copy(C)
+        ###if species == 'ch4': print('CH4 before/after CNFV: ', np.sum(C1) * dx, np.sum(C2) * dx)
+        #    print(np.sum(C1) * dx)
+        #    print(np.sum(C2) * dx)
+        #    print(np.sum(C1) * dx - np.sum(C2) * dx)
 
-    diffgrid_mass_2 = np.sum(C) * dx
+        #C *= (diffgrid_mass_1/diffgrid_mass_2)
+
+        #if species == 'ch4': print('1, 2, 1-2: ', diffgrid_mass_1, diffgrid_mass_2, diffgrid_mass_1 - diffgrid_mass_2)
 
     return C
 
@@ -112,17 +130,29 @@ def transport(species, chd, dtd, sfd, forcing_t, dt):
                 if int_flux < 0.0 and abs((int_flux * dt) / thicks[first_sat_layer]) > U1[first_sat_layer]:
                     int_flux = -(U1[first_sat_layer] * thicks[first_sat_layer])/dt
 
-            # Modify the first saturated layer
-            if params.interface_flux: U1[first_sat_layer] += (int_flux * dt) / thicks[first_sat_layer]
+            # Modify the first saturated layer and overlying sub-saturated layers
+            # Modify the overlying unsaturated layers
+            if params.interface_flux:
+                U1[first_sat_layer] += (int_flux * dt) / thicks[first_sat_layer]
+                U1[0:first_sat_layer] -= (int_flux * dt) / depths[first_sat_layer-1]
+                col_tot_dist_conc = np.dot(U1[0:first_sat_layer], thicks[0:first_sat_layer]) / depths[first_sat_layer - 1]
+                U1[0:first_sat_layer] = col_tot_dist_conc
             sfd[species] = int_flux
+        ###if species == 'ch4': print('ch4 before conversion', np.dot(chd['ch4']['conc'], thicks))
+
+        # Parameters
+        N, L = params.diff_n_dz, sum(thicks)  # Number of layers (control volumes), Length of domain
+        dx = L / N
 
         # Convert exponential model grid to linear diffusion grid
         U1b = conversions.modelgrid2diffgrid(chd[species]['conc'])
+        ###if species == 'ch4': print('ch4 after U1 conversion', np.sum(U1b) * dx)
 
-        U2b = CNFV(forcing_t['efd'][species], iceline, thicks, dt, params.diff_n_dt, U1b, int_flux, first_sat_thick)
+        U2b = CNFV(forcing_t['efd'][species], watline, iceline, thicks, dt, params.diff_n_dt, U1b, int_flux, first_sat_thick, species)
 
         # Convert diffusion to model grid
         U2 = conversions.diffgrid2modelgrid(U2b)
+        ###if species == 'ch4': print('ch4 after U2 conversion', np.dot(U2, thicks))
 
         # Ensure change = 0 if diffusivity = 0 in every layer
         if np.nanmax(forcing_t['efd'][species]) == 0.0: U2 = U1
@@ -146,7 +176,7 @@ def interface_flux(species, chd, forcing_t, layer):
     equi_conc = forcing_t['eqc'][species]
 
     intflux = 0.0 if forcing_t['tem'][layer] <= 0.0 \
-        else -1.0 * tran_vels[layer] * (chd[species]['conc'][layer] - equi_conc[layer])
+        else -1.0 * tran_vels[layer] * (chd[species]['conc'][layer] - chd[species]['conc'][layer-1])
 
     return(intflux)
 

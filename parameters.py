@@ -23,7 +23,7 @@ plant_flag = True  # vertical gas transport by plants
 ###
 
 ### Secondary process switches
-instant_diffusion = False
+instant_diffusion = True
 interface_flux = True
 ###
 
@@ -36,12 +36,12 @@ gaussian_profile = True
 dz0 = 0.02  # initial layer thickness (m)
 growth_rate = 1.05  # factor by which layer thickness grows exponentially ()
 total_depth = 1.0  # total depth of the layer column (m)
-dt = 0.05  # main time-step (days)
+dt = 0.1  # main time-step (days)
 diff_n_dt = 10  # number of diffusion sub-time-steps within dt
 diff_n_dz = 100  # number of diffusion layers (uniform thickness) to total_depth
 write_dt = 0.25  # output write interval in days
-start_datetime = datetime(2022, 1, 1, 0, 0, 0)  # Starting datetime
-end_datetime = datetime(2022, 12, 31, 0, 0, 0)  # Ending datetime
+start_datetime = datetime(2022, 5, 24, 0, 0, 0)  # Starting datetime
+end_datetime = datetime(2022, 10, 30, 0, 0, 0)  # Ending datetime
 ###
 
 ### Model parameters

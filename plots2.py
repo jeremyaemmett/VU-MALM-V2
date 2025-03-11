@@ -37,7 +37,7 @@ def format_subplot(axis, title, fsize, depths, start, end, n_dimensions):
     #axis.grid()
     if n_dimensions == 2:
         axis.set_yticks([0.1, 0.2, 0.3, 0.4, 0.5])
-        axis.set_ylim(0.5, min(depths))
+        axis.set_ylim(0.55, min(depths))
     axis.xaxis_date()
     axis.xaxis.set_major_formatter(date_format)
     axis.set_xlim([start, end])
@@ -95,7 +95,7 @@ def plots(dict_name, dict_dict, fd, log_flag, fsize, n_dimensions, flip_y_flag, 
             X, Y = np.meshgrid(datetimes, depths)
             z = profile.transpose()
             temps = temps[:, 0:z.shape[1]]
-            z[temps <= 0.0] = np.nan
+            #z[temps <= 0.0] = np.nan
 
             if log_flag:
                 l_f = LogFormatter(10, labelOnlyBase=False)
@@ -103,10 +103,7 @@ def plots(dict_name, dict_dict, fd, log_flag, fsize, n_dimensions, flip_y_flag, 
                 minval, maxval = np.nanmin(profile[np.nonzero(profile)]), np.nanmax(profile[np.nonzero(profile)])
                 # Catch the case where everything is 'zero' = 1e-10 (Python plays stupid with contour levels)
                 lvls = [1e-20, 1e-10] if maxval < 2e-10 else np.logspace(np.log10(minval), np.log10(maxval), 100).tolist()
-                #c3 = axis.contourf(X, Y, z, levels = lvls, cmap=cmap, norm = LogNorm(vmin=lvls[0],vmax=lvls[-1]))
                 c3 = axis.contourf(X, Y, z, levels=100, cmap=cmap)
-                #print('z test: ', np.nanmin(z), np.nanmax(z))
-                #cbar = fig.colorbar(c3,orientation='horizontal',cax=cax,format=l_f, extendfrac = 1.5)
                 cbar = fig.colorbar(c3, orientation='horizontal', cax=cax, extendfrac=1.5)
                 cbar.ax.tick_params(axis="both", labelsize=fsize, rotation=45, length=20, width = 5)
 
@@ -115,10 +112,23 @@ def plots(dict_name, dict_dict, fd, log_flag, fsize, n_dimensions, flip_y_flag, 
                 axis.plot([start, end], [depths[i], depths[i]], color='white', linewidth=0.5, linestyle = lstyle)
                 if depths[i] < 0.63: axis.text(textps, depths[i] + np.diff(depths)[i] / 1.5, i,
                                                    fontsize = max(12, (i / len(depths)) * 36.0), color = 'black')
+
+            # Ice boundary overlay
+            temps = fd['tem']
+            temp_times = fd['tim']
+            temp_datetimes = [conversions.doy2datetime(2022, temp_times[i]) for i in range(0, len(temp_times))]
+            X, Y = np.meshgrid(temp_datetimes, depths)
+            temp_mask = 1.0 + 0.0 * temps
+            temp_mask[temps > 0.0] = np.nan
+            axis.contourf(X, Y, temp_mask, colors='white', alpha=1.0)
+            c = axis.contour(X, Y, temps, linewidths=10.0, levels=[0.0], colors='gainsboro', alpha=1.0)
+            # Water boundary overlay
             sats = fd['sat']
-            sats = sats[:, 0:z.shape[1]]
+            sat_times = fd['tim']
+            sat_datetimes = [conversions.doy2datetime(2022, sat_times[i]) for i in range(0, len(sat_times))]
+            X, Y = np.meshgrid(sat_datetimes, depths)
             sats2 = np.copy(sats)
-            sats2[temps <= 0] = np.nan
+            sats2[temp_mask == 1] = np.nan
             c = axis.contour(X, Y, sats2, linewidths=25.0, levels=[0.0, 99.999],colors='blue',alpha=0.5)
             c = axis.contour(X, Y, sats2, linewidths=5.0, levels=[0.0, 99.999],colors='cyan',alpha=1.0)
 
