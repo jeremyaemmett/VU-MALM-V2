@@ -40,8 +40,10 @@ dt = 0.1  # main time-step (days)
 diff_n_dt = 10  # number of diffusion sub-time-steps within dt
 diff_n_dz = 100  # number of diffusion layers (uniform thickness) to total_depth
 write_dt = 0.25  # output write interval in days
-start_datetime = datetime(2022, 5, 24, 0, 0, 0)  # Starting datetime
-end_datetime = datetime(2022, 10, 30, 0, 0, 0)  # Ending datetime
+#start_datetime = datetime(2022, 8, 5, 0, 0, 0)  # Starting datetime 2022 5 24
+#end_datetime = datetime(2022, 8, 12, 0, 0, 0)  # Ending datetime 2022 10 30
+start_datetime = datetime(2022, 1, 1, 0, 0, 0)  # Starting datetime 2022 5 24
+end_datetime = datetime(2023, 1, 1, 0, 0, 0)  # Ending datetime 2022 10 30
 ###
 
 ### Model parameters

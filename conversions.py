@@ -61,8 +61,9 @@ def interp2grid(depths, values, newgrid):
     return newgrid, ynew
 
 
-def diffgrid2modelgrid(diffgrid):
+def diffgrid2modelgrid(diffgrid, *args, **kwargs):
 
+    cons_ids = kwargs.get('cons_ids', None)  # Optional index range in which to force mass conservation
     thicks, depths = init.define_layers()
 
     diff_dz = params.total_depth / params.diff_n_dz
@@ -86,8 +87,9 @@ def diffgrid2modelgrid(diffgrid):
     return modelgrid
 
 
-def modelgrid2diffgrid(modelgrid):
+def modelgrid2diffgrid(modelgrid, *args, **kwargs):
 
+    cons_ids = kwargs.get('cons_ids', None)  # Optional index range in which to force mass conservation
     thicks, depths = init.define_layers()
 
     diff_dz = params.total_depth / params.diff_n_dz

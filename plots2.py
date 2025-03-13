@@ -77,14 +77,15 @@ def plots(dict_name, dict_dict, fd, log_flag, fsize, n_dimensions, flip_y_flag, 
             z = profile.flatten()
 
             z[abs(z) > 3.0 * np.std(z)] = 0.0
-            if weekly_mean_flag: X, z = conversions.resampleDTvals(X, z, '3D')
+            #if weekly_mean_flag: X, z = conversions.resampleDTvals(X, z, '3D')
 
             maxspan = max(abs(np.min(z)), abs(np.max(z)))
             if flip_y_flag: axis.set_ylim([np.max(z), np.min(z)])
             if symmetric_y_flag:
                 axis.set_ylim([-maxspan, maxspan])
                 if flip_y_flag: axis.set_ylim([maxspan, -maxspan])
-            c = axis.fill_between(X, z, color=clr, alpha = 0.35)
+            c = axis.fill_between(X, z, color=clr, alpha=0.35)
+            #c2 = axis.scatter(X, z, color=clr, alpha = 0.35)
             axis.plot([X[0], X[-1]], [0.0, 0.0], linestyle = '-', color = 'black')
             l_f = LogFormatter(10, labelOnlyBase=False)
             cbar = fig.colorbar(c, orientation='horizontal', cax=cax, format=l_f)

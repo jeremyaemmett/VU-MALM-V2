@@ -99,7 +99,7 @@ def CNFV(D_layers, top, bottom, thicks, model_dt, steps, C, int_flux, first_sat_
 
     return C
 
-def transport(species, chd, dtd, sfd, forcing_t, dt):
+def transport(species, chd, dtd, ifd, forcing_t, dt):
 
     # CR-solver
     thicks, depths = init.define_layers()
@@ -129,6 +129,7 @@ def transport(species, chd, dtd, sfd, forcing_t, dt):
                 # If the flux will result in removal > availability in the first saturated layer, cap it
                 if int_flux < 0.0 and abs((int_flux * dt) / thicks[first_sat_layer]) > U1[first_sat_layer]:
                     int_flux = -(U1[first_sat_layer] * thicks[first_sat_layer])/dt
+            ifd[species] = int_flux
 
             # Modify the first saturated layer and overlying sub-saturated layers
             # Modify the overlying unsaturated layers
@@ -137,7 +138,6 @@ def transport(species, chd, dtd, sfd, forcing_t, dt):
                 U1[0:first_sat_layer] -= (int_flux * dt) / depths[first_sat_layer-1]
                 col_tot_dist_conc = np.dot(U1[0:first_sat_layer], thicks[0:first_sat_layer]) / depths[first_sat_layer - 1]
                 U1[0:first_sat_layer] = col_tot_dist_conc
-            sfd[species] = int_flux
         ###if species == 'ch4': print('ch4 before conversion', np.dot(chd['ch4']['conc'], thicks))
 
         # Parameters
@@ -166,7 +166,7 @@ def transport(species, chd, dtd, sfd, forcing_t, dt):
 
         dtd[species]['prof'] = (U1 - U1) / dt  # Record the rates of change
 
-    return(dtd)
+    return(dtd, ifd)
 
 
 def interface_flux(species, chd, forcing_t, layer):
@@ -175,7 +175,7 @@ def interface_flux(species, chd, forcing_t, layer):
     tran_vels = forcing_t['tvel'][species]
     equi_conc = forcing_t['eqc'][species]
 
-    intflux = 0.0 if forcing_t['tem'][layer] <= 0.0 \
+    intflux = 0.0 if forcing_t['tem'][layer] <= 0.0 or params.interface_flux == False \
         else -1.0 * tran_vels[layer] * (chd[species]['conc'][layer] - chd[species]['conc'][layer-1])
 
     return(intflux)

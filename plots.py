@@ -44,6 +44,7 @@ def profile_evolution(profiles, mkm, temps, sats, times, depths, fig, axis, xtit
     divider = make_axes_locatable(axis)
     cax = divider.append_axes('bottom', size='5%', pad=1.0)
     if levels[0] == 0.0: levels[0] = 1e-20
+    if np.nanmax(levels) == np.nanmin(levels): levels = [0.0, np.nanmax(levels)]
     if logflag:
         c3 = axis.contourf(X, Y, Z, cmap=cmap, norm = LogNorm(vmin=levels[0],vmax=levels[-1]))
     else:

@@ -47,12 +47,16 @@ def prepare_output(dict_dict, depths):
     return()
 
 
-def write_output(count, c_datetime, chd, dtd, sfd):
+def write_output(count, c_datetime, chd, dtd, ifd, sfd):
 
     species_list = system.list_user_chemicals()
 
     with open(params.main_directory + 'output/chd.txt', "a") as file:
         file.write(f"{count},{c_datetime},{[','.join(map(str, chd[i]['conc'])) for i in species_list]}\n")
+
+    with open(params.main_directory + 'output/ifd.txt', "a") as file:
+        ifluxes = [ifd[i] for i in species_list]
+        file.write(f"{count},{c_datetime},{','.join(map(str, ifluxes))}\n")
 
     with open(params.main_directory + 'output/sfd.txt', "a") as file:
         sfluxes = [sfd[i] for i in species_list]

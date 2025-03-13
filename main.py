@@ -21,8 +21,8 @@ import time
 thicks, depths = init.define_layers()
 
 fd = forcing.forcing_data()  # Forcing variables
-#plots.forcing_plots(fd)
-chd, mmd, atd, dtd, ptd, sfd, dict_dict = init.variables()  # Chemistry, diffusion, and plant transport variables
+plots.forcing_plots(fd)
+chd, mmd, atd, dtd, ptd, ifd, sfd, dict_dict = init.variables()  # Chemistry, diffusion, and plant transport variables
 
 species_list = system.list_user_chemicals()
 
@@ -72,7 +72,7 @@ while elapsed < run_time and params.jump2plots == False:
             ## Fill unsaturated layers with equilibrium concentrations
             #if watidx > 1: chd[species]['conc'][0:watidx] = forcing_t['eqc'][species][0:watidx]
 
-            # Calculate fill-in rates for sub-saturated layers - this is partitioned into diffusion vs plant-driven
+            # Calculate fill-in rates for sub-sat. layers (diff. between equilibrium and last-updated concentrations)
             if watidx > 1: atd = atmosphere.transport(species, chd, atd, forcing_t, dt, watidx)
 
             #stop
@@ -90,32 +90,31 @@ while elapsed < run_time and params.jump2plots == False:
                 #axes[s].plot([0.0, 1.0], [iceline, iceline], linewidth=lwidth, linestyle = '--', color='gray', alpha = 0.5)
                 #axes[s].plot([0.0, 1.0], [watline, watline], linewidth=lwidth, linestyle='-', color='gray', alpha = 0.5)
             # Calculate gas diffusion rates through soil (mol/m2/day for each layer)
-            if params.diffusion_flag: dtd = diffusion.transport(species, chd, dtd, sfd, forcing_t, dt)
+            dtd[species]['prof'] *= 0.0
+            if params.diffusion_flag: dtd, ifd = diffusion.transport(species, chd, dtd, ifd, forcing_t, dt)
             ###if species == 'ch4': print('ch4 after diffusion process', np.dot(chd['ch4']['conc'], thicks))
+            # Diffusion fill-in partitioning
+            if params.instant_diffusion and watidx > 1: dtd[species]['prof'][0:watidx] += atd[species][0:watidx]
 
-            ###if np.round(doy) == 165: stop
+            # Calculate gas transport rates through plants (mol/m2/day for each layer)
+            # Plant fill-in partitioning
+            if params.instant_diffusion and watidx > 1: ptd[species]['prof'][0:watidx] += 0.0 * atd[species][0:watidx]
 
-            if params.instant_diffusion and watidx > 1: dtd[species]['prof'][0:watidx] = atd[species][0:watidx]
-
-            #dd = diffusion.surface_flux(species, chd, dtd, forcing_t)
-
-            #if species == 'ch4': print(dd[species]['surf'])
-
-            # Calculate gas transport rates through roots (mol/m2/day for each layer)
-
-            # Calculate the surface fluxes (mol/m2/day for diffusion, for roots)
-
-            # Update substrate and microbe concentrations
-            species_total_1 = np.dot(chd[species]['conc'], depths)
+            # Update concentration fields (mol/m3; microbeC/m3) and calculate surface fluxes (mol/m2/day)
+            subsat_sum_1 = np.dot(chd[species]['conc'][0:(watidx-1)], depths[0:(watidx-1)])
             ###if species == 'ch4': print('ch4 before newstep', np.dot(chd['ch4']['conc'], thicks))
             chd = newstep.newstep(species, chd, dtd, dt)
             ###if species == 'ch4': print('ch4 after newstep', np.dot(chd['ch4']['conc'], thicks))
-            species_total_2 = np.dot(chd[species]['conc'], depths)
-            flux = (species_total_2 - species_total_1) / dt
+            subsat_sum_2 = np.dot(chd[species]['conc'][0:(watidx-1)], depths[0:(watidx-1)])
+            #if species == 'co2':
+                #print(' ')
+                #print(atd[species][0:(watidx - 1)])
+                #print(dtd[species]['prof'][0:(watidx-1)])
+            sfd[species] = (subsat_sum_2 - subsat_sum_1) / dt
             #if species == 'ch4' and print_flag:
-            #    print(sfd[species], flux)
+            #    print(sfd[species], ifd[species])
 
-    if write_flag: output.write_output(count, current_datetime, chd, dtd, sfd)
+    if write_flag: output.write_output(count, current_datetime, chd, dtd, ifd, sfd)
 
     # Update the elapsed time, day-of-year, and time-step
     count += 1
@@ -129,6 +128,7 @@ print('Runtime: ', end - start)
 
 # dict_name, dict_dict, fd, log_flag, fsize, n_dimensions, flip_y_flag, symmetric_y_flag, resampling_flag
 test = plots2.plots('chd', dict_dict, fd, True, 48, 2, False, False, False)
+test = plots2.plots('ifd', dict_dict, fd, True, 48, 1, True, True, True)
 test = plots2.plots('sfd', dict_dict, fd, True, 48, 1, True, True, True)
 
 #plt.show()

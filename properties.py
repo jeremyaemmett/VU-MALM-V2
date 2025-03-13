@@ -96,6 +96,8 @@ def q10_temperature_factors(t):
 
 def equilibrium_concentration(temps):
 
+    # temps = 20.0 + 0.0 * temps  # Optionally force uniform equilibrium concentrations at a given temperature
+
     th = 273.15  # Reference temp (K)
     t2 = np.copy(temps)
     t2 += 273.15 # Convert C to K

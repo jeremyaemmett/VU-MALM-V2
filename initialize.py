@@ -122,6 +122,16 @@ def define_srffluxes():
     return srffluxes_dictionary
 
 
+def define_intfluxes():
+
+    unique_chemicals = system.list_user_chemicals()
+
+    srffluxes_dictionary = {}
+    for i in range(0, len(unique_chemicals)): srffluxes_dictionary[unique_chemicals[i]] = 0.0
+
+    return srffluxes_dictionary
+
+
 def variables():
 
     chemistry_dictionary, mmrdecomp_dictionary = define_chemistry()
@@ -129,9 +139,11 @@ def variables():
     diffusion_dictionary = define_diffusion()
     plantdiff_dictionary = define_plantdiff()
     srffluxes_dictionary = define_srffluxes()
+    intfluxes_dictionary = define_intfluxes()
     dict_dict = {'chd': chemistry_dictionary, 'mmd': mmrdecomp_dictionary,
                  'atd': atmfillin_dictionary, 'dtd': diffusion_dictionary, 'ptd': plantdiff_dictionary,
-                 'sfd': srffluxes_dictionary}
+                 'ifd': intfluxes_dictionary, 'sfd': srffluxes_dictionary}
 
     return chemistry_dictionary, mmrdecomp_dictionary, atmfillin_dictionary, \
-           diffusion_dictionary, plantdiff_dictionary, srffluxes_dictionary, dict_dict
+           diffusion_dictionary, plantdiff_dictionary, intfluxes_dictionary, \
+           srffluxes_dictionary, dict_dict
