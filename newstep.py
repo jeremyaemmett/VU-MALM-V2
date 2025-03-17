@@ -1,9 +1,17 @@
 import parameters as params
 import numpy as np
 
-# 3/2/2025
+# 3/17/2025
 
 def newstep(species, chd, dtd, dt):
+
+    """ Update dynamic quantities using their predicted rates of change over the current timestep
+    :param species:
+    :param chd:
+    :param dtd:
+    :param dt:
+    :return:
+    """
 
     chd[species]['conc'] += dtd[species]['prof'] * dt
 
@@ -13,6 +21,13 @@ def newstep(species, chd, dtd, dt):
 
 
 def adaptive_timestep(forcingt, elapsed):
+
+    """ Update the current time-step for e.g. stability, efficiency. Alignment with write time-steps is ensured when the
+    timestep would otherwise over-step these, to prevent skipping output records
+    :param forcingt:
+    :param elapsed:
+    :return:
+    """
 
     best_dt = params.dt
 

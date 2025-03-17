@@ -3,52 +3,30 @@
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.ticker import LogFormatter
 from datetime import datetime, timedelta
-from matplotlib.colors import LogNorm
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
-from scipy.stats import zscore
 import parameters as params
 import conversions
 import numpy as np
 import output
 
-# 3/2/2025
-
-
-def prepare_plot_grid(plots_per_row):
-
-    fig, axes = plt.subplots()
-    fig.patch.set_facecolor('ghostwhite')
-    fig.set_size_inches(0.35 * plots_per_row * 45.0, 45.0, forward=True)
-    plt.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0.25, hspace=0.3)
-
-    return(fig, axes)
-
-
-def format_subplot(axis, title, fsize, depths, start, end, n_dimensions):
-
-    axis.spines['top'].set_visible(False)
-    axis.spines['right'].set_visible(False)
-    axis.set_facecolor('ghostwhite')
-    date_format = mdates.DateFormatter('%b')
-    axis.set_title(title, fontsize=fsize, fontweight="bold")
-    axis.xaxis.set_tick_params(labelsize=fsize)
-    axis.yaxis.set_tick_params(labelsize=fsize)
-    #axis.grid()
-    if n_dimensions == 2:
-        axis.set_yticks([0.1, 0.2, 0.3, 0.4, 0.5])
-        axis.set_ylim(0.55, min(depths))
-    axis.xaxis_date()
-    axis.xaxis.set_major_formatter(date_format)
-    axis.set_xlim([start, end])
-    plt.minorticks_off()
-    divider = make_axes_locatable(axis)
-    cax = divider.append_axes('bottom', size='5%', pad=1.5)
-
-    return cax
+# 3/17/2025
 
 
 def plots(dict_name, dict_dict, fd, log_flag, fsize, n_dimensions, flip_y_flag, symmetric_y_flag, weekly_mean_flag):
+
+    """ Plot the model output, such that each variable dictionary gets its own plot window that is identically named
+    :param dict_name:
+    :param dict_dict:
+    :param fd:
+    :param log_flag:
+    :param fsize:
+    :param n_dimensions:
+    :param flip_y_flag:
+    :param symmetric_y_flag:
+    :param weekly_mean_flag:
+    :return:
+    """
 
     temps = fd['tem']
 
@@ -77,7 +55,7 @@ def plots(dict_name, dict_dict, fd, log_flag, fsize, n_dimensions, flip_y_flag, 
             z = profile.flatten()
 
             z[abs(z) > 3.0 * np.std(z)] = 0.0
-            #if weekly_mean_flag: X, z = conversions.resampleDTvals(X, z, '3D')
+            #  if weekly_mean_flag: X, z = conversions.resampleDTvals(X, z, '3D')  # Optional time-series resampling
 
             maxspan = max(abs(np.min(z)), abs(np.max(z)))
             if flip_y_flag: axis.set_ylim([np.max(z), np.min(z)])
@@ -85,7 +63,6 @@ def plots(dict_name, dict_dict, fd, log_flag, fsize, n_dimensions, flip_y_flag, 
                 axis.set_ylim([-maxspan, maxspan])
                 if flip_y_flag: axis.set_ylim([maxspan, -maxspan])
             c = axis.fill_between(X, z, color=clr, alpha=0.35)
-            #c2 = axis.scatter(X, z, color=clr, alpha = 0.35)
             axis.plot([X[0], X[-1]], [0.0, 0.0], linestyle = '-', color = 'black')
             l_f = LogFormatter(10, labelOnlyBase=False)
             cbar = fig.colorbar(c, orientation='horizontal', cax=cax, format=l_f)
@@ -96,7 +73,6 @@ def plots(dict_name, dict_dict, fd, log_flag, fsize, n_dimensions, flip_y_flag, 
             X, Y = np.meshgrid(datetimes, depths)
             z = profile.transpose()
             temps = temps[:, 0:z.shape[1]]
-            #z[temps <= 0.0] = np.nan
 
             if log_flag:
                 l_f = LogFormatter(10, labelOnlyBase=False)
@@ -141,3 +117,52 @@ def plots(dict_name, dict_dict, fd, log_flag, fsize, n_dimensions, flip_y_flag, 
         count += 1
 
     plt.savefig(params.main_directory + 'output/' + dict_name+ '.png', bbox_inches='tight')
+
+
+def format_subplot(axis, title, fsize, depths, start, end, n_dimensions):
+
+    """ Reused formatting commands to ensure a clean and consistent plot visualizations
+    :param axis:
+    :param title:
+    :param fsize:
+    :param depths:
+    :param start:
+    :param end:
+    :param n_dimensions:
+    :return:
+    """
+
+    axis.spines['top'].set_visible(False)
+    axis.spines['right'].set_visible(False)
+    axis.set_facecolor('ghostwhite')
+    date_format = mdates.DateFormatter('%b')
+    axis.set_title(title, fontsize=fsize, fontweight="bold")
+    axis.xaxis.set_tick_params(labelsize=fsize)
+    axis.yaxis.set_tick_params(labelsize=fsize)
+    # axis.grid()
+    if n_dimensions == 2:
+        axis.set_yticks([0.1, 0.2, 0.3, 0.4, 0.5])
+        axis.set_ylim(0.55, min(depths))
+    axis.xaxis_date()
+    axis.xaxis.set_major_formatter(date_format)
+    axis.set_xlim([start, end])
+    plt.minorticks_off()
+    divider = make_axes_locatable(axis)
+    cax = divider.append_axes('bottom', size='5%', pad=1.5)
+
+    return cax
+
+
+def prepare_plot_grid(plots_per_row):
+
+    """ Set-up a multi-plot panel in the plot window
+    :param plots_per_row:
+    :return:
+    """
+
+    fig, axes = plt.subplots()
+    fig.patch.set_facecolor('ghostwhite')
+    fig.set_size_inches(0.35 * plots_per_row * 45.0, 45.0, forward=True)
+    plt.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0.25, hspace=0.3)
+
+    return (fig, axes)

@@ -6,9 +6,14 @@ import initialize as init
 import pandas as pd
 import numpy as np
 
-# 3/2/2025
+# 3/17/2025
 
 def key2plotparams(key):
+
+    """ Assign certain plot properties to each named dictionary key, to facilitate consistent visual formatting
+    :param key:
+    :return:
+    """
 
     if key == 'tem': label, cmap, clr = 'Temperature [C]', 'rainbow', 'black'
     if key == 'ft1': label, cmap, clr = 'Temp factor 1', 'rainbow', 'black'
@@ -44,24 +49,35 @@ def key2plotparams(key):
 
 def doy2datetime(year, doy):
 
+    """ Convert day-of-year (1-365) to a datetime object
+    :param year:
+    :param doy:
+    :return:
+    """
+
     return datetime(year, 1, 1) + timedelta(doy - 1)
 
 
 def datetime2doy(date_time):
+
+    """ Convert a datetime object to a day-of-year (1-365)
+    :param date_time:
+    :return:
+    """
 
     day_of_year = date_time.timetuple().tm_yday
 
     return day_of_year
 
 
-def interp2grid(depths, values, newgrid):
-
-    ynew = np.interp(newgrid, depths, values)
-
-    return newgrid, ynew
-
-
 def diffgrid2modelgrid(lin_grid, cons_depths = []):
+
+    """ Map values on the diffusion grid (linearly-spaced) to values on the main model grid (exponentially-spaced).
+    A mass conservation correction is applied to the new gridded values, which is optionally split over 3 depth regimes.
+    :param lin_grid:
+    :param cons_depths:
+    :return:
+    """
 
     exp_thicks, exp_depths = init.define_layers()
 
@@ -113,24 +129,14 @@ def diffgrid2modelgrid(lin_grid, cons_depths = []):
     return exp_grid
 
 
-def map_depth_values(exp_depth_grid, high_res_depth_grid):
-    # Initialize an array to store mapped values
-    mapped_values = np.zeros_like(high_res_depth_grid)
-
-    # For each index in the higher resolution grid, find the corresponding depth in the exponential grid
-    exp_index = 0
-    for i, depth in enumerate(high_res_depth_grid):
-        # While the depth is greater than the current exponential depth
-        while exp_index < len(exp_depth_grid) - 1 and depth > exp_depth_grid[exp_index + 1]:
-            exp_index += 1
-
-        # Assign the value of the exponential grid at the corresponding depth range
-        mapped_values[i] = exp_depth_grid[exp_index]
-
-    return mapped_values
-
-
 def modelgrid2diffgrid(exp_grid, cons_depths = []):
+
+    """ Map values on the main model grid (exponentially-spaced) to values on the diffusion grid (linearly-spaced).
+    A mass conservation correction is applied to the new gridded values, which is optionally split over 3 depth regimes.
+    :param exp_grid:
+    :param cons_depths:
+    :return:
+    """
 
     exp_thicks, exp_depths = init.define_layers()
 
@@ -182,27 +188,48 @@ def modelgrid2diffgrid(exp_grid, cons_depths = []):
     return lin_grid
 
 
-def harmonic_mean(a, b):
-
-    return 2 * a * b / (a + b)
-
-
 def volpct2kgm3(volpct, density):
+
+    """ Convert a substance's volumetric density percentage to a physical density (kg/m3)
+    :param volpct:
+    :param density:
+    :return:
+    """
 
     return (volpct / 100.0) * density
 
 
 def unitm3s2unitm2(unitm3s, thicks):
 
+    """ Convert a substance's volumetric rate of change (unit/m3/sec) to a unit-area flux (unit/m2/sec)
+    :param unitm3s:
+    :param thicks:
+    :return:
+    """
+
     return np.dot(unitm3s, thicks)
 
 
 def ddmmyyyy2doy(ddmmyyyy):
+
+    """
+    Convert a condensed date string (ddmmyyyy) to a day-of-year (1-365)
+    :param ddmmyyyy:
+    :return:
+    """
+
     doy = datetime(int(ddmmyyyy[4:]), int(ddmmyyyy[2:4]), int(ddmmyyyy[0:2])).timetuple().tm_yday
     return(doy)
 
 
 def datedprofiles2grid(days, profiles, n_times):
+
+    """ Extrapolate dated soil profiles to a time x depth array that is utilizable as a model forcing field array
+    :param days:
+    :param profiles:
+    :param n_times:
+    :return:
+    """
 
     # Transpose the values array so that each row corresponds to the values at a specific index across days
     transp_profs = np.array(profiles).T  # Each row will represent a different value index over the days
@@ -218,21 +245,46 @@ def datedprofiles2grid(days, profiles, n_times):
 
 def temporally_extrude_profile(profile, ntimes):
 
+    """ If one wishes to hold a soil profile constant in time, this function extrudes it in the time dimension
+    :param profile:
+    :param ntimes:
+    :return:
+    """
+
     return np.transpose(np.array([profile for n in range(0, ntimes)]))
 
 
 def vertically_extrude_profile(profile, ndepths):
 
+    """ If one wishes to assign the same value to all depths, this function extrudes it in the depth dimension
+    :param profile:
+    :param ndepths:
+    :return:
+    """
+
     return np.array([profile for n in range(0, ndepths)])
 
 
 def get_var_name(var):
+
+    """ Convert the name of a global variable to a string
+    :param var:
+    :return:
+    """
+
     for name, value in globals().items():
         if value is var:
             return name
 
 
 def resampleDTvals(datetimes, values, resampling_interval):
+
+    """ Resample time series data
+    :param datetimes:
+    :param values:
+    :param resampling_interval:
+    :return:
+    """
 
     datetime_strings = datetimes  # Sample input data: datetime strings and corresponding values
     dates = pd.to_datetime(datetime_strings)  # Convert datetime strings to pandas datetime objects
@@ -245,3 +297,10 @@ def resampleDTvals(datetimes, values, resampling_interval):
     resampled_values = resampled_means['value'].values
 
     return(resampled_dates, resampled_values)
+
+
+def interp2grid(depths, values, newgrid):
+
+    ynew = np.interp(newgrid, depths, values)
+
+    return newgrid, ynew

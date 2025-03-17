@@ -4,9 +4,14 @@ import parameters as params
 import numpy as np
 import system
 
-# 2/28/2025
+# 3/17/2025
 
 def diffusivity(layer_temps):
+
+    """ Calculate gas (adfs) and liquid phase (wdfs) diffusivities for each chemical species listed in 'parameters'
+    :param layer_temps:
+    :return:
+    """
 
     temps_k = np.array(layer_temps) + 273.15
     sec_to_day, th, phi = 8.64e4, 273.15, 298.0 # sec-to-day conversion, reference temperatures
@@ -33,6 +38,12 @@ def diffusivity(layer_temps):
 
 def effective_diffusivity(satpct, layer_temps):
 
+    """ Calculate effective diffusitives for each chemical species, (average of adfs and wdfs, weighted by saturation)
+    :param satpct:
+    :param layer_temps:
+    :return:
+    """
+
     eff_diffs, eff_diffs_full = {}, {}
     diffs = diffusivity(layer_temps)
     ww, aw = 0.01 * satpct, 1.0 - 0.01 * satpct  # Weights representing relative water and air volumes, for averaging
@@ -43,15 +54,17 @@ def effective_diffusivity(satpct, layer_temps):
 
         # Confine diffusion calculations to the saturated region - easiest way is to apply zero-diffusivity masks here
         eff_diffs[s][layer_temps <= 0.0] = 0.0
-        #eff_diffs[s] = diffs['wat'][s]
-        #eff_diffs[s][satpct < 100.0] = 0.0
-
-        #eff_diffs[s][layer_temps <= 10.0] = (layer_temps[layer_temps <= 10.0] / 10.0) * eff_diffs[s][layer_temps <= 10.0]
 
     return eff_diffs, eff_diffs_full
 
 
 def temperature_factor_q10(t, q10):
+
+    """ Calculate the temperature sensitivity of C -> DOC decomposition
+    :param t:
+    :param q10:
+    :return:
+    """
 
     # Output: 'f_tX' = soil temperature factors ()
     # Input: temperature 't' (C); temperature sensitivity 'q10' (1/10K)
@@ -65,6 +78,11 @@ def temperature_factor_q10(t, q10):
 
 
 def temperature_factors_1_and_2(t):
+
+    """ Calculate other generic temperature senstivity parameters
+    :param t:
+    :return:
+    """
 
     # Output: 'f_t1, f_t2' = soil temperature factors ()
     # Input: temperature 't' (C)
@@ -84,6 +102,11 @@ def temperature_factors_1_and_2(t):
 
 def q10_temperature_factors(t):
 
+    """ Calculate the temperature sensitivity of each microbe-mediated reaction listed in 'parameters'
+    :param t:
+    :return:
+    """
+
     reacts = list(params.reactions.keys())
     q10_temperature_factors = {}
     for i in range(0, len(reacts)):
@@ -95,6 +118,11 @@ def q10_temperature_factors(t):
 
 
 def equilibrium_concentration(temps):
+
+    """ Calculate the temperature-dependent equilibrium concentration of each chemical species
+    :param temps:
+    :return:
+    """
 
     # temps = 20.0 + 0.0 * temps  # Optionally force uniform equilibrium concentrations at a given temperature
 
@@ -119,6 +147,10 @@ def equilibrium_concentration(temps):
 
 def partial_pressure():
 
+    """ Calculate the partial atmospheric pressure of each chemical species
+    :return:
+    """
+
     chems = system.list_user_chemicals()
     partial_pressures = {}
     for i in range(0, len(chems)): partial_pressures[chems[i]] = (params.cprops[chems[i]]['airvol'] / 1e2) * 101.325e3
@@ -128,10 +160,24 @@ def partial_pressure():
 
 def dissolved_organic_carbon(org_cpls, temps, sats, thks):
 
+    """ Infer instantaneous values of DOC based on temperature and moisture conditions
+    :param org_cpls:
+    :param temps:
+    :param sats:
+    :param thks:
+    :return:
+    """
+
     return params.k_cpool * (org_cpls / thks) * temperature_factor_q10(temps, params.doc_prod_q10) * 0.01 * sats
 
 
 def schmidt_number(temps):
+
+    """ Calculate the temperature-dependent Schmidt number of each chemical species,
+    the ratio of molecular diffusion to kinematic viscosity (m2/sec)
+    :param temps:
+    :return:
+    """
 
     chems = system.list_user_chemicals()
     schmidts = {}
@@ -144,6 +190,12 @@ def schmidt_number(temps):
 
 
 def transfer_velocity(schm_nums):
+
+    """ Calculate the transfer velocity of each chemical species at the water-air interface, supporting a robust
+    calculation of diffusion across a saturated/unsaturated boundary that would 'shock' a traditional diffusion solver
+    :param schm_nums:
+    :return:
+    """
 
     u_10, n = 0.0, -0.5
     phi_600 = 2.07 + 0.215 * u_10 ** 1.7

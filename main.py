@@ -1,4 +1,4 @@
-""" Main wrapper code, containing the computational time-loop and important routine calls """
+""" Main code, containing the computational time-loop and major routine calls """
 
 import matplotlib.pyplot as plt
 from datetime import timedelta
@@ -16,7 +16,7 @@ import plots2
 import plots
 import time
 
-# 3/2/2025
+# 3/17/2025
 
 thicks, depths = init.define_layers()
 

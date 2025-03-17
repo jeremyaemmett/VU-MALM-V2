@@ -5,10 +5,14 @@ import numpy as np
 import conversions
 import system
 
-# 3/2/2025
+# 3/17/2025
 
 
 def define_diffusion_layers():
+
+    """ Define the properties of the uniformly-spaced diffusion grid
+    :return:
+    """
 
     lin_thicks = params.total_depth / params.diff_n_dz
     lin_depths = np.linspace(lin_thicks, params.total_depth, params.diff_n_dz)
@@ -18,6 +22,10 @@ def define_diffusion_layers():
 
 
 def define_layers():
+
+    """ Define the properties of the exponentially-spaced main model grid
+    :return:
+    """
 
     # Ensure grid_depths is a numpy array for easy operations
     grid_thicks, grid_depths = define_diffusion_layers()
@@ -55,6 +63,10 @@ def define_layers():
 
 def define_atmfillin():
 
+    """ Prepare a dictionary to store atmospheric gas fill-in rates in unsaturated layers
+    :return:
+    """
+
     unique_chemicals = system.list_user_chemicals()
 
     layer_thicknesses, depths = define_layers()
@@ -67,6 +79,10 @@ def define_atmfillin():
 
 
 def define_diffusion():
+
+    """ Prepare a dictionary to store diffusive gas transport rates
+    :return:
+    """
 
     unique_chemicals = system.list_user_chemicals()
 
@@ -81,6 +97,10 @@ def define_diffusion():
 
 def define_plantdiff():
 
+    """ Prepare a dictionary to store plant root-mediated gas transport rates
+    :return:
+    """
+
     unique_chemicals = system.list_user_chemicals()
 
     layer_thicknesses, depths = define_layers()
@@ -93,6 +113,11 @@ def define_plantdiff():
 
 
 def define_chemistry():
+
+    """ Prepare a dictionary to store gas chemical concentrations (mol/m3) and production/consumption rates (mol/m3/day)
+    and prepare a separate dictionary to store values relevant for Michaelis-Menten reaction calculations
+    :return:
+    """
 
     unique_chemicals = system.list_user_chemicals()
     reactions_involving_chemicals = system.list_reactions_involving_chemicals()
@@ -132,6 +157,10 @@ def define_chemistry():
 
 def define_srffluxes():
 
+    """ Prepare a dictionary to store surface flux rates (mol/m2/day)
+    :return:
+    """
+
     unique_chemicals = system.list_user_chemicals()
 
     srffluxes_dictionary = {}
@@ -142,6 +171,10 @@ def define_srffluxes():
 
 def define_intfluxes():
 
+    """ Prepare a dictionary to store water-air interface flux rates (mol/m2/day)
+    :return:
+    """
+
     unique_chemicals = system.list_user_chemicals()
 
     srffluxes_dictionary = {}
@@ -151,6 +184,10 @@ def define_intfluxes():
 
 
 def variables():
+
+    """ Compile the above dictionaries, and pack these into an 'outer' dictionary for bookkeeping
+    :return:
+    """
 
     chemistry_dictionary, mmrdecomp_dictionary = define_chemistry()
     atmfillin_dictionary = define_atmfillin()

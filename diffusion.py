@@ -1,16 +1,21 @@
-import properties
 import numpy as np
 import conversions
 import initialize as init
 import parameters as params
 from scipy.linalg import solve_banded
-from scipy.ndimage import gaussian_filter
 
-# 3/2/2025
+# 3/17/2025
 
 def setup_diffusivity(N, x, D_layers, layer_boundaries):
 
-    # Assign diffusivities to spatial points based on layer boundaries
+    """ Assign diffusivities to spatial points based on layer boundaries
+    :param N:
+    :param x:
+    :param D_layers:
+    :param layer_boundaries:
+    :return:
+    """
+
     D = np.zeros(N)
     for j in range(0, len(layer_boundaries)):
         for i in range(N):
@@ -20,7 +25,19 @@ def setup_diffusivity(N, x, D_layers, layer_boundaries):
     return D
 
 
-def CNFV(D_layers, top, bottom, thicks, model_dt, steps, C, int_flux, first_sat_thick, species):
+def CNFV(D_layers, top, bottom, thicks, model_dt, steps, C, species):
+
+    """ Solve diffusion using a Crank-Nicolson finite volume method
+    :param D_layers:
+    :param top:
+    :param bottom:
+    :param thicks:
+    :param model_dt:
+    :param steps:
+    :param C:
+    :param species:
+    :return:
+    """
 
     # Parameters
     N, L = params.diff_n_dz, sum(thicks) # Number of layers (control volumes), Length of domain
@@ -44,10 +61,6 @@ def CNFV(D_layers, top, bottom, thicks, model_dt, steps, C, int_flux, first_sat_
         d_interfaces = np.zeros(N + 1)
         for i in range(1, N): d_interfaces[i] = D[i + indices[0]]
         d_interfaces[0], d_interfaces[-1] = D[indices[0]], D[indices[-1]]
-        #print(d_interfaces)
-        #print(D)
-        #print(indices[0], D[i + indices[0]])
-        #print(d_interfaces)
 
         r = (dt / (2 * dx**2)) * d_interfaces  # Crank-Nicolson Coefficients
 
@@ -71,35 +84,35 @@ def CNFV(D_layers, top, bottom, thicks, model_dt, steps, C, int_flux, first_sat_
         B[0, 0] = B[-1, -1] = 1
         B[0, 1] = B[-1, -2] = -1
 
-        diffgrid_mass_1 = np.sum(C[indices]) * dx
-        C1 = np.copy(C)
+        diffgrid_mass_1 = np.sum(C[indices]) * dx  # Optional: Integrated mass 1 for conservation verification
+
         for n in range(steps):  # Time-stepping loop
 
             RHS = B @ C[indices]
 
             C_new = solve_banded((1, 1), A_banded, RHS)  # Solve the linear system A * C_new = RHS
 
-            #CA, CB, CC = C[0:indices[0]], C_new, C[(indices[-1]+1):]
-            #C = np.append(CA, np.append(CB, CC))
             C[indices] = C_new
 
-            diffgrid_mass_n = np.sum(C) * dx  # Optional: Print mass to verify conservation
+            diffgrid_mass_n = np.sum(C) * dx  # Optional: Integrated mass 2 for conservation verification
 
         diffgrid_mass_2 = np.sum(C[indices]) * dx
         C[indices] *= diffgrid_mass_1/diffgrid_mass_2
-        C2 = np.copy(C)
-        ###if species == 'ch4': print('CH4 before/after CNFV: ', np.sum(C1) * dx, np.sum(C2) * dx)
-        #    print(np.sum(C1) * dx)
-        #    print(np.sum(C2) * dx)
-        #    print(np.sum(C1) * dx - np.sum(C2) * dx)
-
-        #C *= (diffgrid_mass_1/diffgrid_mass_2)
-
-        #if species == 'ch4': print('1, 2, 1-2: ', diffgrid_mass_1, diffgrid_mass_2, diffgrid_mass_1 - diffgrid_mass_2)
 
     return C
 
 def transport(species, chd, dtd, ifd, forcing_t, dt, level_change):
+
+    """ Predict diffusive transport fluxes
+    :param species:
+    :param chd:
+    :param dtd:
+    :param ifd:
+    :param forcing_t:
+    :param dt:
+    :param level_change:
+    :return:
+    """
 
     # CR-solver
     thicks, depths = init.define_layers()
@@ -109,19 +122,15 @@ def transport(species, chd, dtd, ifd, forcing_t, dt, level_change):
 
     U1 = chd[species]['conc']
 
-    int_flux = 0.0
-    first_sat_thick = 0.0
-    # If the entire soil column is thawed, there's saturated layers above the iceline, and the saturated domain didn't
-    # just change it's top or bottom position, run the diffusion scheme in the saturated layers
+    # If the entire soil column is thawed and there's saturated layers above the iceline,
+    # run the diffusion scheme in the saturated layers
+    int_flux, first_sat_thick = 0.0, 0.0
     if iceline != params.total_depth and iceline > watline:
 
         if len(unsaturated_ids) > 0 and np.nanmax(forcing_t['efd'][species]) != 0.0:
 
-            # Calculate the water-to-air interface flux, and modify the boundary layers
+            # Note some important indices and depths
             first_sat_layer = unsaturated_ids[-1] + 1
-            second_sat_layer = first_sat_layer + 1
-            first_sat_depth, second_sat_depth = depths[first_sat_layer], depths[second_sat_layer]
-            first_sat_thick = second_sat_depth - first_sat_depth
 
             # Calculate a water-air interface flux. Defaults to zero if there's no gradient at the interface.
             int_flux = 0.0
@@ -134,36 +143,26 @@ def transport(species, chd, dtd, ifd, forcing_t, dt, level_change):
             ifd[species] = int_flux
 
             # Modify the first saturated layer and overlying sub-saturated layers
-            # Modify the overlying unsaturated layers
             if params.interface_flux:
                 U1[first_sat_layer] += (int_flux * dt) / thicks[first_sat_layer]
-                #U1[0:first_sat_layer] -= (int_flux * dt) / depths[first_sat_layer-1]
-                #col_tot_dist_conc = np.dot(U1[0:first_sat_layer], thicks[0:first_sat_layer]) / depths[first_sat_layer - 1]
-                #U1[0:first_sat_layer] = col_tot_dist_conc
-        ###if species == 'ch4': print('ch4 before conversion', np.dot(chd['ch4']['conc'], thicks))
 
         # Parameters
         N, L = params.diff_n_dz, sum(thicks)  # Number of layers (control volumes), Length of domain
         dx = L / N
 
         # Convert exponential model grid to linear diffusion grid
-        #if species == 'ch4': print('exp 1: ', np.dot(chd[species]['conc'], thicks))
-        #print('watline: ', watline, ' iceline: ', iceline)
+        # if species == 'ch4': print('ch4 before conversion', np.dot(chd['ch4']['conc'], thicks))
         U1b = conversions.modelgrid2diffgrid(chd[species]['conc'], [watline, iceline])
-        #if species == 'ch4': print('lin 1: ', np.sum(U1b)*dx)
+        # if species == 'ch4': print('ch4 after U1 conversion', np.sum(U1b) * dx)
 
-        #U1b = conversions.modelgrid2diffgrid(chd[species]['conc'])
-        ###if species == 'ch4': print('ch4 after U1 conversion', np.sum(U1b) * dx)
+        U2b = CNFV(forcing_t['efd'][species], watline, iceline, thicks, dt, params.diff_n_dt, U1b, species)
 
-        U2b = CNFV(forcing_t['efd'][species], watline, iceline, thicks, dt, params.diff_n_dt, U1b, int_flux, first_sat_thick, species)
-        #if species == 'ch4': print('lin 2: ', np.sum(U2b) * dx)
         # Convert diffusion to model grid
+        # if species == 'ch4': print('lin 2: ', np.sum(U2b) * dx)
         U2 = conversions.diffgrid2modelgrid(U2b, [watline, iceline])
-        #if species == 'ch4': print('exp 2: ', np.dot(U2, thicks))
-        #if species == 'ch4': stop
-        #U2 = conversions.diffgrid2modelgrid(U2b)
-        ###if species == 'ch4': print('ch4 after U2 conversion', np.dot(U2, thicks))
+        # if species == 'ch4': print('exp 2: ', np.dot(U2, thicks))
 
+        # Modify the overlying unsaturated layers
         if len(unsaturated_ids) > 0 and np.nanmax(forcing_t['efd'][species]) != 0.0:
             if params.interface_flux:
                 U2[0:first_sat_layer] -= (int_flux * dt) / depths[first_sat_layer-1]
@@ -189,10 +188,16 @@ def transport(species, chd, dtd, ifd, forcing_t, dt, level_change):
 
 
 def interface_flux(species, chd, forcing_t, layer):
-    # Calculates flux across the water-air interface (mol/m2/day)
+
+    """ Calculates the flux across the water-air interface (mol/m2/day)
+    :param species:
+    :param chd:
+    :param forcing_t:
+    :param layer:
+    :return:
+    """
 
     tran_vels = forcing_t['tvel'][species]
-    equi_conc = forcing_t['eqc'][species]
 
     intflux = 0.0 if forcing_t['tem'][layer] <= 0.0 or params.interface_flux == False \
         else -1.0 * tran_vels[layer] * (chd[species]['conc'][layer] - chd[species]['conc'][layer-1])

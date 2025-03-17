@@ -3,10 +3,21 @@ import numpy as np
 import system
 import csv
 
-# 2/27/2025_2
+# 3/17/2025
 
 
 def read_row(row, row_num, var_num, n_layers, profiles, n_dimensions):
+
+    """ Read the row of an output file, representing profile values (e.g. chemical concentrations),
+    or a singular value (e.g. a surface flux), at a given time-step
+    :param row:
+    :param row_num:
+    :param var_num:
+    :param n_layers:
+    :param profiles:
+    :param n_dimensions:
+    :return:
+    """
 
     if n_dimensions == 1: n_layers = 1
     for column_idx in range((var_num-1)*n_layers, var_num*n_layers):
@@ -20,6 +31,13 @@ def read_row(row, row_num, var_num, n_layers, profiles, n_dimensions):
 
 def write_header(file, depths, keys):
 
+    """ Write an output file header, displaying model depths, and dictionary keys as labels for the data columns
+    :param file:
+    :param depths:
+    :param keys:
+    :return:
+    """
+
     [file.write(depths[j] + ',') if j < len(depths)-1 else file.write(depths[j]) for j in range(0, len(depths))]
     file.write('\n')
     [file.write(keys[j] + ',') if j < len(keys) - 1 else file.write(keys[j]) for j in range(0, len(keys))]
@@ -29,6 +47,12 @@ def write_header(file, depths, keys):
 
 
 def prepare_output(dict_dict, depths):
+
+    """ Create an output file for each variable dictionary, to record their contents at each time step
+    :param dict_dict:
+    :param depths:
+    :return:
+    """
 
     depths = list(depths.astype(str))
 
@@ -49,6 +73,16 @@ def prepare_output(dict_dict, depths):
 
 def write_output(count, c_datetime, chd, dtd, ifd, sfd):
 
+    """ For each variable dictionary, record its contents at each time-step
+    :param count:
+    :param c_datetime:
+    :param chd:
+    :param dtd:
+    :param ifd:
+    :param sfd:
+    :return:
+    """
+
     species_list = system.list_user_chemicals()
 
     with open(params.main_directory + 'output/chd.txt', "a") as file:
@@ -64,6 +98,12 @@ def write_output(count, c_datetime, chd, dtd, ifd, sfd):
 
 
 def read_output(filename, n_dimensions):
+
+    """ For each variable dictionary, read its contents at each time-step
+    :param filename:
+    :param n_dimensions:
+    :return:
+    """
 
     # Get the number of time records, data key names, and depths (if applicable), from the file
     header_length = 3
