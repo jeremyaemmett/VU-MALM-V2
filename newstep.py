@@ -7,8 +7,7 @@ def newstep(species, chd, dtd, dt):
 
     chd[species]['conc'] += dtd[species]['prof'] * dt
 
-    ###chd[species]['conc'][chd[species]['conc'] < 2e-10] = 1e-10  # Suppress numerical noise around the minimum value
-    #cd['chem'][species]['conc'][0] += 0.001 * dd[species]['surf'] * dt
+    chd[species]['conc'][chd[species]['conc'] < 2e-10] = 1e-10  # Suppress numerical noise around the minimum value
 
     return(chd)
 

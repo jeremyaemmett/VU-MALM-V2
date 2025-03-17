@@ -7,7 +7,20 @@ import system
 
 # 3/2/2025
 
+
+def define_diffusion_layers():
+
+    lin_thicks = params.total_depth / params.diff_n_dz
+    lin_depths = np.linspace(lin_thicks, params.total_depth, params.diff_n_dz)
+    lin_depths = np.array([np.round(lin_depths[i], 2) for i in range(0, params.diff_n_dz)])
+
+    return lin_thicks, lin_depths
+
+
 def define_layers():
+
+    # Ensure grid_depths is a numpy array for easy operations
+    grid_thicks, grid_depths = define_diffusion_layers()
 
     layer_thicknesses = []
     current_depth = 0
@@ -32,7 +45,12 @@ def define_layers():
     depths = np.cumsum(layer_thicknesses) # Layer bottom depths (m)
     depths = np.array([np.round(depths[i], 2) for i in range(0, len(depths))])
 
-    return layer_thicknesses, depths
+    # Ensure alignment of the model (exponential) and the diffusion (linear) grids
+    shared_depths = set(depths).intersection(grid_depths)
+    depths = np.array([depth for depth in depths if depth in shared_depths])
+    thicks = np.diff(np.insert(depths, 0, 0.0))
+
+    return thicks, depths
 
 
 def define_atmfillin():

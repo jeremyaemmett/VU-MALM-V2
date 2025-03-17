@@ -61,55 +61,125 @@ def interp2grid(depths, values, newgrid):
     return newgrid, ynew
 
 
-def diffgrid2modelgrid(diffgrid, *args, **kwargs):
+def diffgrid2modelgrid(lin_grid, cons_depths = []):
 
-    cons_ids = kwargs.get('cons_ids', None)  # Optional index range in which to force mass conservation
-    thicks, depths = init.define_layers()
+    exp_thicks, exp_depths = init.define_layers()
 
-    diff_dz = params.total_depth / params.diff_n_dz
-    diff_depths = np.linspace(diff_dz, params.total_depth, params.diff_n_dz)
+    lin_thicks = params.total_depth / params.diff_n_dz
+    lin_depths = np.linspace(lin_thicks, params.total_depth, params.diff_n_dz)
 
     # Interpolate the gas concentrations onto the exponentially spaced grid
-    modelgrid = np.interp(depths, diff_depths, diffgrid)
+    exp_grid = np.interp(exp_depths, lin_depths, lin_grid)
 
-    # Mass conservation by scaling the concentrations
-    linear_mass = np.trapz(diffgrid, diff_depths)  # Integral over the linear grid
-    exp_mass = np.trapz(modelgrid, depths)  # Integral over the exponential grid
+    if len(cons_depths) == 0:  # Correct the entire column
 
-    # Mass conservation by scaling the concentrations
-    linear_mass = np.sum(diffgrid) * diff_dz
-    exp_mass = np.dot(modelgrid, thicks)
+        # Find the scaling factor needed for mass conservation
+        lin_mass = np.sum(lin_grid) * lin_thicks
+        exp_mass = np.dot(exp_grid, exp_thicks)
+        scaling_factor = lin_mass / exp_mass
 
-    # Scale the concentrations on the exponential grid to conserve mass
-    scaling_factor = linear_mass / exp_mass
-    modelgrid *= scaling_factor
+        # Scale the concentrations on the exponential grid to conserve mass
+        exp_grid *= scaling_factor
 
-    return modelgrid
+    else:  # Correct only within the specified depth range
+
+        # Find the depth indices where mass conservation should be applied
+        exp_idx_1 = np.where(exp_depths == cons_depths[0])[0][0]
+        exp_idx_2 = np.where(exp_depths == cons_depths[1])[0][0]
+        lin_idx_1 = np.where(abs(lin_depths - cons_depths[0]) == np.min(abs(lin_depths - cons_depths[0])))[0][0]
+        lin_idx_2 = np.where(abs(lin_depths - cons_depths[1]) == np.min(abs(lin_depths - cons_depths[1])))[0][0]
+
+        lin_mass_a = np.sum(lin_grid[0:lin_idx_1]) * lin_thicks
+        lin_mass_b = np.sum(lin_grid[lin_idx_1:lin_idx_2]) * lin_thicks
+        lin_mass_c = np.sum(lin_grid[lin_idx_2:]) * lin_thicks
+
+        exp_mass_a = np.dot(exp_grid[0:exp_idx_1], exp_thicks[0:exp_idx_1])
+        exp_mass_b = np.dot(exp_grid[exp_idx_1:exp_idx_2], exp_thicks[exp_idx_1:exp_idx_2])
+        exp_mass_c = np.dot(exp_grid[exp_idx_2:], exp_thicks[exp_idx_2:])
+
+        # Find the scale factor needed for mass conservation
+        lin_mass = np.sum(lin_grid[lin_idx_1:]) * lin_thicks
+        exp_mass = np.dot(exp_grid[exp_idx_1:], exp_thicks[exp_idx_1:])
+        scaling_factor = lin_mass / exp_mass
+
+        # Find the scale factor needed for mass conservation
+        sclf_a, sclf_b, sclf_c = lin_mass_a / exp_mass_a, lin_mass_b / exp_mass_b, lin_mass_c / exp_mass_c
+
+        # Scale the concentrations on the exponential grid to conserve mass
+        exp_grid[0:exp_idx_1] *= sclf_a
+        exp_grid[exp_idx_1:exp_idx_2] *= sclf_b
+        exp_grid[exp_idx_2:] *= sclf_c
+
+    return exp_grid
 
 
-def modelgrid2diffgrid(modelgrid, *args, **kwargs):
+def map_depth_values(exp_depth_grid, high_res_depth_grid):
+    # Initialize an array to store mapped values
+    mapped_values = np.zeros_like(high_res_depth_grid)
 
-    cons_ids = kwargs.get('cons_ids', None)  # Optional index range in which to force mass conservation
-    thicks, depths = init.define_layers()
+    # For each index in the higher resolution grid, find the corresponding depth in the exponential grid
+    exp_index = 0
+    for i, depth in enumerate(high_res_depth_grid):
+        # While the depth is greater than the current exponential depth
+        while exp_index < len(exp_depth_grid) - 1 and depth > exp_depth_grid[exp_index + 1]:
+            exp_index += 1
 
-    diff_dz = params.total_depth / params.diff_n_dz
-    diff_depths = np.linspace(diff_dz, params.total_depth, params.diff_n_dz)
-    diff_depths = [np.round(diff_depths[i], 2) for i in range(0, params.diff_n_dz)]
+        # Assign the value of the exponential grid at the corresponding depth range
+        mapped_values[i] = exp_depth_grid[exp_index]
+
+    return mapped_values
+
+
+def modelgrid2diffgrid(exp_grid, cons_depths = []):
+
+    exp_thicks, exp_depths = init.define_layers()
+
+    lin_thicks = params.total_depth / params.diff_n_dz
+    lin_depths = np.linspace(lin_thicks, params.total_depth, params.diff_n_dz)
+    lin_depths = [np.round(lin_depths[i], 2) for i in range(0, params.diff_n_dz)]
 
     # Interpolate the gas concentrations onto the linearly spaced grid
-    diffgrid = np.interp(diff_depths, depths, modelgrid)
+    lin_grid = np.interp(lin_depths, exp_depths, exp_grid)
 
-    # Mass conservation by scaling the concentrations
-    diffgrid_mass = np.trapz(diffgrid, diff_depths)  # Integral over the linear grid
-    diffgrid_mass = np.sum(diffgrid) * diff_dz
-    modlgrid_mass = np.trapz(modelgrid, depths)  # Integral over the exponential grid
-    modlgrid_mass = np.dot(modelgrid, thicks)
+    #print('exp before: ', np.dot(exp_grid[:], exp_thicks[:]))
 
-    # Scale the concentrations on the exponential grid to conserve mass
-    scaling_factor = modlgrid_mass / diffgrid_mass
-    diffgrid *= scaling_factor
+    if len(cons_depths) == 0:  # Correct the entire column
 
-    return diffgrid
+        # Mass conservation by scaling the concentrations
+        lin_mass = np.sum(lin_grid) * lin_thicks
+        exp_mass = np.dot(exp_grid, exp_thicks)
+
+        # Scale the concentrations on the exponential grid to conserve mass
+        scaling_factor = exp_mass / lin_mass
+        lin_grid *= scaling_factor
+
+    else:  # Correct only within the specified depth range
+
+        # Find the depth indices where mass conservation should be applied
+        exp_idx_1 = np.where(exp_depths == cons_depths[0])[0][0]
+        exp_idx_2 = np.where(exp_depths == cons_depths[1])[0][0]
+        lin_idx_1 = np.where(abs(lin_depths - cons_depths[0]) == np.min(abs(lin_depths - cons_depths[0])))[0][0]
+        lin_idx_2 = np.where(abs(lin_depths - cons_depths[1]) == np.min(abs(lin_depths - cons_depths[1])))[0][0]
+
+        lin_mass_a = np.sum(lin_grid[0:lin_idx_1]) * lin_thicks
+        lin_mass_b = np.sum(lin_grid[lin_idx_1:lin_idx_2]) * lin_thicks
+        lin_mass_c = np.sum(lin_grid[lin_idx_2:]) * lin_thicks
+
+        exp_mass_a = np.dot(exp_grid[0:exp_idx_1], exp_thicks[0:exp_idx_1])
+        exp_mass_b = np.dot(exp_grid[exp_idx_1:exp_idx_2], exp_thicks[exp_idx_1:exp_idx_2])
+        exp_mass_c = np.dot(exp_grid[exp_idx_2:], exp_thicks[exp_idx_2:])
+
+        # Find the scale factor needed for mass conservation
+        sclf_a, sclf_b, sclf_c = exp_mass_a / lin_mass_a, exp_mass_b / lin_mass_b, exp_mass_c / lin_mass_c
+
+        # Scale the concentrations on the exponential grid to conserve mass
+        lin_grid[0:lin_idx_1] *= sclf_a
+        lin_grid[lin_idx_1:lin_idx_2] *= sclf_b
+        lin_grid[lin_idx_2:] *= sclf_c
+
+    #print('lin after: ', np.sum(lin_grid[:]) * lin_thicks)
+
+    return lin_grid
 
 
 def harmonic_mean(a, b):

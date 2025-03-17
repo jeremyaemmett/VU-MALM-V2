@@ -21,7 +21,7 @@ import time
 thicks, depths = init.define_layers()
 
 fd = forcing.forcing_data()  # Forcing variables
-plots.forcing_plots(fd)
+#plots.forcing_plots(fd)
 chd, mmd, atd, dtd, ptd, ifd, sfd, dict_dict = init.variables()  # Chemistry, diffusion, and plant transport variables
 
 species_list = system.list_user_chemicals()
@@ -32,7 +32,7 @@ species_list = system.list_user_chemicals()
 # Main computational time loop
 dt, count, elapsed, doy = params.dt, 0, 0.0, conversions.datetime2doy(params.start_datetime)
 run_time, start = (params.end_datetime - params.start_datetime).days, time.time()
-
+watidx, iceidx, watidx_old, iceidx_old = 0, 0, 0, 0
 if params.jump2plots == False: output.prepare_output(dict_dict, depths)
 while elapsed < run_time and params.jump2plots == False:
 
@@ -51,8 +51,10 @@ while elapsed < run_time and params.jump2plots == False:
     # Ice table depth
     iceidx = 0 if np.max(forcing_t['tem']) < 0.0 else np.where(forcing_t['tem'] <= 0.0)[0][0]
     watidx = 0 if np.max(forcing_t['tem']) < 0.0 else np.where(forcing_t['sat'] == 100.0)[0][0]
+    level_change = watidx != watidx_old or iceidx != iceidx_old
+    watidx_old, iceidx_old = watidx, iceidx
     iceline, watline = depths[iceidx], depths[watidx]
-
+    #print('ch4 before processes', np.dot(chd['ch4']['conc'][0:watidx], thicks[0:watidx]))
     if print_flag:
         print('ch4 before processes', np.dot(chd['ch4']['conc'], thicks))
         #print(np.dot(chd['ch4']['conc'][0:watidx], thicks[0:watidx]))
@@ -69,8 +71,8 @@ while elapsed < run_time and params.jump2plots == False:
 
             species = species_list[s]
 
-            ## Fill unsaturated layers with equilibrium concentrations
-            #if watidx > 1: chd[species]['conc'][0:watidx] = forcing_t['eqc'][species][0:watidx]
+            # Fill unsaturated layers with equilibrium concentrations
+            if watidx > 1 and params.instant_diffusion: chd[species]['conc'][0:watidx] = forcing_t['eqc'][species][0:watidx]
 
             # Calculate fill-in rates for sub-sat. layers (diff. between equilibrium and last-updated concentrations)
             if watidx > 1: atd = atmosphere.transport(species, chd, atd, forcing_t, dt, watidx)
@@ -91,26 +93,31 @@ while elapsed < run_time and params.jump2plots == False:
                 #axes[s].plot([0.0, 1.0], [watline, watline], linewidth=lwidth, linestyle='-', color='gray', alpha = 0.5)
             # Calculate gas diffusion rates through soil (mol/m2/day for each layer)
             dtd[species]['prof'] *= 0.0
-            if params.diffusion_flag: dtd, ifd = diffusion.transport(species, chd, dtd, ifd, forcing_t, dt)
+            if params.diffusion_flag: dtd, ifd = diffusion.transport(species, chd, dtd, ifd, forcing_t, dt, level_change)
             ###if species == 'ch4': print('ch4 after diffusion process', np.dot(chd['ch4']['conc'], thicks))
             # Diffusion fill-in partitioning
-            if params.instant_diffusion and watidx > 1: dtd[species]['prof'][0:watidx] += atd[species][0:watidx]
+            #if params.instant_diffusion and watidx > 1: dtd[species]['prof'][0:watidx] += atd[species][0:watidx]
 
             # Calculate gas transport rates through plants (mol/m2/day for each layer)
             # Plant fill-in partitioning
             if params.instant_diffusion and watidx > 1: ptd[species]['prof'][0:watidx] += 0.0 * atd[species][0:watidx]
 
             # Update concentration fields (mol/m3; microbeC/m3) and calculate surface fluxes (mol/m2/day)
-            subsat_sum_1 = np.dot(chd[species]['conc'][0:(watidx-1)], depths[0:(watidx-1)])
+            subsat_sum_1 = np.dot(chd[species]['conc'][0:(watidx-1)], thicks[0:(watidx-1)])
+            #if species == 'ch4' and print_flag:
+            #    print('subsat_sum_1: ', subsat_sum_1)
+            #    print(dtd[species]['prof'][0:(watidx-1)])
             ###if species == 'ch4': print('ch4 before newstep', np.dot(chd['ch4']['conc'], thicks))
             chd = newstep.newstep(species, chd, dtd, dt)
             ###if species == 'ch4': print('ch4 after newstep', np.dot(chd['ch4']['conc'], thicks))
-            subsat_sum_2 = np.dot(chd[species]['conc'][0:(watidx-1)], depths[0:(watidx-1)])
+            subsat_sum_2 = np.dot(chd[species]['conc'][0:(watidx-1)], thicks[0:(watidx-1)])
+            if species == 'ch4' and print_flag: print('subsat_sum_2: ', subsat_sum_2)
             #if species == 'co2':
                 #print(' ')
                 #print(atd[species][0:(watidx - 1)])
                 #print(dtd[species]['prof'][0:(watidx-1)])
-            sfd[species] = (subsat_sum_2 - subsat_sum_1) / dt
+            #sfd[species] = np.dot(forcing_t['eqc'][species][0:(watidx-1)] - chd[species]['conc'][0:(watidx-1)],
+            sfd[species] = (subsat_sum_2 - subsat_sum_1) / dt if level_change == False else 0.0
             #if species == 'ch4' and print_flag:
             #    print(sfd[species], ifd[species])
 

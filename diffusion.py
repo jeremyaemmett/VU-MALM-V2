@@ -99,19 +99,21 @@ def CNFV(D_layers, top, bottom, thicks, model_dt, steps, C, int_flux, first_sat_
 
     return C
 
-def transport(species, chd, dtd, ifd, forcing_t, dt):
+def transport(species, chd, dtd, ifd, forcing_t, dt, level_change):
 
     # CR-solver
     thicks, depths = init.define_layers()
-    iceline = depths[np.where(forcing_t['tem'] <= 0.0)[0][0]-1]
-    watline = depths[np.where(forcing_t['sat'] < 100.0)[0][-1]] if len(np.where(forcing_t['sat'] < 100.0)[0]) > 0 else depths[-1]
+    iceline = depths[np.where(forcing_t['tem'] <= 0.0)[0][0]]
+    watline = depths[np.where(forcing_t['sat'] < 100.0)[0][-1]] if len(np.where(forcing_t['sat'] < 100.0)[0]) > 0 else depths[-1] # Don't change this from depths[np.where(forcing_t['sat'] < 100.0)[0][-1]]!
     unsaturated_ids = np.where(forcing_t['sat'] < 100.0)[0]
 
     U1 = chd[species]['conc']
 
     int_flux = 0.0
     first_sat_thick = 0.0
-    if iceline != params.total_depth:  # If the entire soil column is NOT frozen
+    # If the entire soil column is thawed, there's saturated layers above the iceline, and the saturated domain didn't
+    # just change it's top or bottom position, run the diffusion scheme in the saturated layers
+    if iceline != params.total_depth and iceline > watline:
 
         if len(unsaturated_ids) > 0 and np.nanmax(forcing_t['efd'][species]) != 0.0:
 
@@ -135,9 +137,9 @@ def transport(species, chd, dtd, ifd, forcing_t, dt):
             # Modify the overlying unsaturated layers
             if params.interface_flux:
                 U1[first_sat_layer] += (int_flux * dt) / thicks[first_sat_layer]
-                U1[0:first_sat_layer] -= (int_flux * dt) / depths[first_sat_layer-1]
-                col_tot_dist_conc = np.dot(U1[0:first_sat_layer], thicks[0:first_sat_layer]) / depths[first_sat_layer - 1]
-                U1[0:first_sat_layer] = col_tot_dist_conc
+                #U1[0:first_sat_layer] -= (int_flux * dt) / depths[first_sat_layer-1]
+                #col_tot_dist_conc = np.dot(U1[0:first_sat_layer], thicks[0:first_sat_layer]) / depths[first_sat_layer - 1]
+                #U1[0:first_sat_layer] = col_tot_dist_conc
         ###if species == 'ch4': print('ch4 before conversion', np.dot(chd['ch4']['conc'], thicks))
 
         # Parameters
@@ -145,14 +147,28 @@ def transport(species, chd, dtd, ifd, forcing_t, dt):
         dx = L / N
 
         # Convert exponential model grid to linear diffusion grid
-        U1b = conversions.modelgrid2diffgrid(chd[species]['conc'])
+        #if species == 'ch4': print('exp 1: ', np.dot(chd[species]['conc'], thicks))
+        #print('watline: ', watline, ' iceline: ', iceline)
+        U1b = conversions.modelgrid2diffgrid(chd[species]['conc'], [watline, iceline])
+        #if species == 'ch4': print('lin 1: ', np.sum(U1b)*dx)
+
+        #U1b = conversions.modelgrid2diffgrid(chd[species]['conc'])
         ###if species == 'ch4': print('ch4 after U1 conversion', np.sum(U1b) * dx)
 
         U2b = CNFV(forcing_t['efd'][species], watline, iceline, thicks, dt, params.diff_n_dt, U1b, int_flux, first_sat_thick, species)
-
+        #if species == 'ch4': print('lin 2: ', np.sum(U2b) * dx)
         # Convert diffusion to model grid
-        U2 = conversions.diffgrid2modelgrid(U2b)
+        U2 = conversions.diffgrid2modelgrid(U2b, [watline, iceline])
+        #if species == 'ch4': print('exp 2: ', np.dot(U2, thicks))
+        #if species == 'ch4': stop
+        #U2 = conversions.diffgrid2modelgrid(U2b)
         ###if species == 'ch4': print('ch4 after U2 conversion', np.dot(U2, thicks))
+
+        if len(unsaturated_ids) > 0 and np.nanmax(forcing_t['efd'][species]) != 0.0:
+            if params.interface_flux:
+                U2[0:first_sat_layer] -= (int_flux * dt) / depths[first_sat_layer-1]
+                col_tot_dist_conc = np.dot(U2[0:first_sat_layer], thicks[0:first_sat_layer]) / depths[first_sat_layer - 1]
+                U2[0:first_sat_layer] = col_tot_dist_conc
 
         # Ensure change = 0 if diffusivity = 0 in every layer
         if np.nanmax(forcing_t['efd'][species]) == 0.0: U2 = U1
@@ -165,6 +181,9 @@ def transport(species, chd, dtd, ifd, forcing_t, dt):
         if np.nanmax(forcing_t['efd'][species]) == 0.0: U2 = U1
 
         dtd[species]['prof'] = (U1 - U1) / dt  # Record the rates of change
+
+    dtd[species]['prof'][abs(dtd[species]['prof']) < 1e-10] = 0.0  # Suppress numerical noise around the minimum value
+    #dtd[species]['prof'][forcing_t['tem'] <= 0.0] = 0.0  # Ensure zero change in frozen layers
 
     return(dtd, ifd)
 

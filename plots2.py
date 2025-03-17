@@ -121,7 +121,7 @@ def plots(dict_name, dict_dict, fd, log_flag, fsize, n_dimensions, flip_y_flag, 
             X, Y = np.meshgrid(temp_datetimes, depths)
             temp_mask = 1.0 + 0.0 * temps
             temp_mask[temps > 0.0] = np.nan
-            axis.contourf(X, Y, temp_mask, colors='white', alpha=1.0)
+            axis.contourf(X, Y, temp_mask, colors='white', alpha=1.0, hatches = '//')
             c = axis.contour(X, Y, temps, linewidths=10.0, levels=[0.0], colors='gainsboro', alpha=1.0)
             # Water boundary overlay
             sats = fd['sat']
